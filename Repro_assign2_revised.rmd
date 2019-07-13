@@ -1,0 +1,166 @@
+# Public health and economic damages caused by severe weather condition
+## Synopsis
+
+In this report, we would like to investigate the effect of weather events on population health and economic measurements in the United States. More specifically, we would like to know which event has the most severe effect on the two mentioned parameters above. To investigate this, we have used the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database between 1950 to Novembre 2011.
+This database contains the record of major storms and weather events such as time and location, as well as an estimation of human and economic damages.
+Based on the results, Tornado is the highest risk for both public health and property damages. 
+
+## Loading required libraries
+
+``` {r echo= FALSE}
+library(dplyr)
+```
+
+## Loading and processing raw data
+
+The data is obtained from [NOAA database] (https://www.ncdc.noaa.gov/stormevents/). This file contains the data between 1950 - 2011.
+
+```{r}
+URL <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+
+destfolder <- "./stormdata"
+        if (!dir.exists(destfolder)) {dir.create (destfolder)}
+
+destfile <- "./stormdata/stormdata.csv"
+        if (!file.exists(destfile)) {download.file(URL, destfile ="./stormdata/stormdata.csv")}
+raw.data <- read.csv ("./stormdata/stormdata.csv")
+
+```
+
+
+After loading the data file, we would have a quick scan through the data file to get familiarized with the information.
+
+Looking at the data structure:
+
+```{r}
+str(raw.data)
+```
+
+Looking at the first 6 rows of the data
+```{r}
+head (raw.data)
+```
+
+To prepare the data for our analysis and in order to calculate the economic damage of the weather events, we will be looking at two variables: Property damage (PropDMG) and crop damage (CropDMG). PropDMG and CropDMG are numeric variables which are associated with PropDMGEXP and CropDMGEXP factor variables indicating thousand, million, billion, etc. We will combine the numeric and factor variables for Property and Crop damages together to get one number representing the correct dollar value.
+
+
+Finding the levels in PropDMGEXP variable:
+
+```{r}
+unique(raw.data$PROPDMGEXP)
+```
+
+Finding the levels in CropDMGEXP variable:
+```{r}
+unique(raw.data$CROPDMGEXP)
+```
+
+Assigning values to each level:
+```{r}
+
+raw.data$PROPEXP[raw.data$PROPDMGEXP == "K"]  <- 1000
+raw.data$PROPEXP[raw.data$PROPDMGEXP == "M"]   <-  1000000
+raw.data$PROPEXP[raw.data$PROPDMGEXP == ""]   <-  1
+raw.data$PROPEXP[raw.data$PROPDMGEXP == "B"]   <-  1000000000
+raw.data$PROPEXP[raw.data$PROPDMGEXP == "m"]   <-  1000000
+raw.data$PROPEXP[raw.data$PROPDMGEXP == "+"]   <-  0
+raw.data$PROPEXP[raw.data$PROPDMGEXP == "0"]   <-  1
+raw.data$PROPEXP[raw.data$PROPDMGEXP == "5"]   <-  100000
+raw.data$PROPEXP[raw.data$PROPDMGEXP == "6"]   <-  1000000
+raw.data$PROPEXP[raw.data$PROPDMGEXP == "?"]   <-  0
+raw.data$PROPEXP[raw.data$PROPDMGEXP == "4"]   <-  10000
+raw.data$PROPEXP[raw.data$PROPDMGEXP == "2"]   <-  100
+raw.data$PROPEXP[raw.data$PROPDMGEXP == "3"]   <-  1000
+raw.data$PROPEXP[raw.data$PROPDMGEXP == "h"]   <-  100
+raw.data$PROPEXP[raw.data$PROPDMGEXP == "7"]   <-  10000000
+raw.data$PROPEXP[raw.data$PROPDMGEXP == "H"]   <-  100
+raw.data$PROPEXP[raw.data$PROPDMGEXP == "-"]   <-  0
+raw.data$PROPEXP[raw.data$PROPDMGEXP == "1"]   <-  10
+raw.data$PROPEXP[raw.data$PROPDMGEXP == "8"]   <-  100000000
+
+
+raw.data$CROPEXP[raw.data$CROPDMGEXP == ""]   <-  1
+raw.data$CROPEXP[raw.data$CROPDMGEXP == "M"]   <-  1000000
+raw.data$CROPEXP[raw.data$CROPDMGEXP == "K"]   <-  1000
+raw.data$CROPEXP[raw.data$CROPDMGEXP == "m"]   <-  1000000000
+raw.data$CROPEXP[raw.data$CROPDMGEXP == "B"]   <-  1000000
+raw.data$CROPEXP[raw.data$CROPDMGEXP == "?"]   <-  0
+raw.data$CROPEXP[raw.data$CROPDMGEXP == "0"]   <-  1
+raw.data$CROPEXP[raw.data$CROPDMGEXP == "k"]   <-  1000
+raw.data$CROPEXP[raw.data$CROPDMGEXP == "2"]   <-  100
+
+
+raw.data$PROPDMGVAL <- raw.data$PROPDMG * raw.data$PROPEXP
+raw.data$CROPDMGVAL <- raw.data$CROPDMG * raw.data$CROPEXP
+```
+
+And finally adding property damage values and Crop damage values to calculate total economic damage:
+```{r}
+raw.data$ALLDMGVAL <- raw.data$PROPDMGVAL + raw.data$CROPDMGVAL
+```
+
+Now the data is ready for analysis.
+In order to investigate the effect of each event, the data will be grouped by event type. Total numbers of fatalities, injuries and economical damage will be calculated and stored in separate objects as below:
+
+```{r}
+EveType_grouped <- raw.data %>% group_by (EVTYPE) %>% summarise (sum_fatality = sum (FATALITIES, na.rm=TRUE), sum_injuries = sum (INJURIES, na.rm= TRUE), sum_economic_DMG = sum (ALLDMGVAL, na.rm = TRUE))
+
+head (EveType_grouped)
+
+```
+
+
+```{r}
+Fatalities <- EveType_grouped %>% select (EVTYPE, sum_fatality) %>% arrange(-sum_fatality)
+```
+
+```{r}
+Injuries <- EveType_grouped %>% select (EVTYPE, sum_injuries) %>% arrange(-sum_injuries)
+```
+
+```{r}
+Economic_DMG <- EveType_grouped %>% select (EVTYPE, sum_economic_DMG) %>% arrange(-sum_economic_DMG)
+```
+
+
+
+# Results
+
+To find the highest damaging events, the top 10 events in terms of the damage caused by them are pulled out. The results are shown in the tables as well as in the graphs:
+
+Top 10 fatal events followed:
+```{r}
+Top_fatal <- Fatalities %>% top_n (10)
+Top_fatal
+```
+Top 10 injury caused events:
+```{r}
+Top_injured <- Injuries %>% top_n (10)
+Top_injured
+```
+
+
+Graphing the top 10 events in terms of fatalities and injruies caused by them:
+
+```{r}
+par(mfrow = c(1, 2), mar = c(12, 4, 3, 2), mgp = c(3, 1, 0), las=3, cex = 0.8)
+barplot(Top_fatal$sum_fatality, names.arg=Top_fatal$EVTYPE, ylim= c(0,8000),col="Black",ylab="Number of Fatalities", main=" Top 10 Events with Highest Fatalities")
+
+barplot(Top_injured$sum_injuries, names.arg=Top_injured$EVTYPE,ylim= c(0,90000), col="White", ylab="Number of Injuries", main=" Top 10 Events with Highest Injuries")
+```
+
+Top 10 economical damaging events::
+```{r}
+Top_Economic_DMG <- Economic_DMG %>% top_n (10)
+Top_Economic_DMG
+```
+```{r}
+par(mfrow = c(1, 2), mar = c(12, 4, 3, 2), mgp = c(3, 1, 0), las=3, cex = 0.8, cex.main = 0.9)
+
+barplot((Top_Economic_DMG$sum_economic_DMG)/(1*1000000000), names.arg=Top_Economic_DMG$EVTYPE, col="Gray", ylab=" Total economical Damage($ billions)", main="Top 10 Events Causing Highest economical Damage Value")
+```
+
+Conclusion:
+
+Based on the results, Tornado is the highest riskful event for public health in terms of death, followed by excessive heat. However, in terms of injury, Tornado and TSTM wind are among the most injury-causing events.
+When it comes to economic damage which is defined as damage to properties as well as crops, the flood is the most severe event followed by Hurricane. 
